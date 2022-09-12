@@ -26,7 +26,7 @@
 
 import json
 
-from django.core.urlresolvers import reverse
+from django import __version__ as DJANGO_VERSION
 from django.templatetags.static import static
 from django.utils import translation
 from django.utils.html import escape
@@ -34,8 +34,19 @@ from django.utils.html import format_html
 from django.utils.html import format_html_join
 from django.utils.safestring import mark_safe
 
-from wagtail.wagtailadmin.templatetags.wagtailadmin_tags import hook_output
-from wagtail.wagtailcore import hooks
+from wagtail import __version__ as WAGTAIL_VERSION
+
+if DJANGO_VERSION >= '2.0':
+    from django.urls import reverse
+else:
+    from django.core.urlresolvers import reverse
+
+if WAGTAIL_VERSION >= '2.0':
+    from wagtail.admin.templatetags.wagtailadmin_tags import hook_output
+    from wagtail.core import hooks
+else:
+    from wagtail.wagtailadmin.templatetags.wagtailadmin_tags import hook_output
+    from wagtail.wagtailcore import hooks
 
 
 def to_js_primitive(string):
@@ -55,6 +66,14 @@ def insert_editor_css():
     return css_includes + hook_output('insert_tinymce_css')
 
 
+def _format_js_includes(js_files):
+    return format_html_join(
+        '\n',
+        '<script src="{0}"></script>',
+        ((static(filename),) for filename in js_files)
+    )
+
+
 @hooks.register('insert_editor_js')
 def insert_editor_js():
     preload = format_html(
@@ -68,21 +87,17 @@ def insert_editor_js():
         '</script>',
         to_js_primitive(static('wagtailtinymce/js/vendor/tinymce')),
     )
-    js_files = [
-        'wagtailtinymce/js/vendor/tinymce/tinymce.jquery.js',
+    js_includes = _format_js_includes([
+        'wagtailtinymce/js/vendor/tinymce/jquery.tinymce.min.js',
+        'wagtailtinymce/js/vendor/tinymce/tinymce.min.js',
         'wagtailtinymce/js/tinymce-editor.js',
-    ]
-    js_includes = format_html_join(
-        '\n',
-        '<script src="{0}"></script>',
-        ((static(filename),) for filename in js_files)
-    )
+    ])
     return preload + js_includes + hook_output('insert_tinymce_js')
 
 
 @hooks.register('insert_tinymce_js')
 def images_richtexteditor_js():
-    return format_html(
+    preload = format_html(
         """
         <script>
             registerMCEPlugin("wagtailimage", {}, {});
@@ -93,11 +108,15 @@ def images_richtexteditor_js():
         to_js_primitive(translation.to_locale(translation.get_language())),
         to_js_primitive(reverse('wagtailimages:chooser_select_format', args=['00000000']))
     )
-
+    js_includes = _format_js_includes([
+        'wagtailimages/js/image-chooser-modal.js',
+        'wagtailimages/js/image-chooser.js'
+    ])
+    return preload + js_includes
 
 @hooks.register('insert_tinymce_js')
 def embeds_richtexteditor_js():
-    return format_html(
+    preload = format_html(
         """
         <script>
             registerMCEPlugin("wagtailembeds", {}, {});
@@ -106,11 +125,15 @@ def embeds_richtexteditor_js():
         to_js_primitive(static('wagtailtinymce/js/tinymce-plugins/wagtailembeds.js')),
         to_js_primitive(translation.to_locale(translation.get_language())),
     )
+    js_includes = _format_js_includes([
+        'wagtailembeds/js/embed-chooser-modal.js',
+    ])
+    return preload + js_includes
 
 
 @hooks.register('insert_tinymce_js')
 def links_richtexteditor_js():
-    return format_html(
+    preload = format_html(
         """
         <script>
             registerMCEPlugin("wagtaillink", {}, {});
@@ -119,11 +142,16 @@ def links_richtexteditor_js():
         to_js_primitive(static('wagtailtinymce/js/tinymce-plugins/wagtaillink.js')),
         to_js_primitive(translation.to_locale(translation.get_language())),
     )
+    js_includes = _format_js_includes([
+        'wagtailadmin/js/page-chooser.js',
+        'wagtailadmin/js/page-chooser-modal.js',
+    ])
+    return preload + js_includes
 
 
 @hooks.register('insert_tinymce_js')
 def docs_richtexteditor_js():
-    return format_html(
+    preload = format_html(
         """
         <script>
             registerMCEPlugin("wagtaildoclink", {}, {});
@@ -132,3 +160,8 @@ def docs_richtexteditor_js():
         to_js_primitive(static('wagtailtinymce/js/tinymce-plugins/wagtaildoclink.js')),
         to_js_primitive(translation.to_locale(translation.get_language())),
     )
+    js_includes = _format_js_includes([
+        'wagtaildocs/js/document-chooser.js',
+        'wagtaildocs/js/document-chooser-modal.js',
+    ])
+    return preload + js_includes
